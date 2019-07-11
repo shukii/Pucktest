@@ -1,6 +1,9 @@
 <html>
 <body>
 <button onclick="connect()">Connect to Web Bluetooth</button>
+<input type="color" id="color" value="#e66465" style="display:none"/>
+<input type="range" id="vibrateleft" min="0" max="255" value="0" style="display:none"/>
+<input type="range" id="vibrateright" min="0" max="255" value="0" style="display:none"/>
 <script>
 function connect() {
   var options =  {
@@ -11,7 +14,6 @@ function connect() {
   };
   var busy = false;
   var gatt, service;
-  // Bring up the Web Bluetooth Device Chooser
   navigator.bluetooth.requestDevice(options).then(function(device) {
     console.log('Device: ' + JSON.stringify(device));
     return device.gatt.connect();
@@ -19,20 +21,46 @@ function connect() {
    gatt = g;
    // Get our custom service
    return gatt.getPrimaryService("7b340000-105b-2b38-3a74-2932f884e90e");
-  }).then(function(service) {
+  }).then(function(s) {
+    service = s;
     // Get the RGB LED characteristic
     return service.getCharacteristic("7b340001-105b-2b38-3a74-2932f884e90e");
   }).then(function(characteristic) {
-    // Make a random color
-    var rgb = new Uint8Array([
-	    Math.random()*255,
-	    Math.random()*255,
-	    Math.random()*255]);
-    // Write it to the characteristic
-    return characteristic.writeValue(rgb);
+    var colorPicker = document.querySelector("#color");
+    colorPicker.style.display = "block";
+    colorPicker.addEventListener("input", function(event) {
+      var col = event.target.value;  // #bbggrr
+      var rgb = new Uint8Array([
+      	parseInt(col.substr(5,2),16),
+       	parseInt(col.substr(3,2),16),
+      	parseInt(col.substr(1,2),16)]);
+      if (busy) return;
+      busy = true;
+      characteristic.writeValue(rgb).then(function() {
+        busy = false;
+      });
+    }, false);
+    // Get the Vibration characteristic
+    return service.getCharacteristic("7b340002-105b-2b38-3a74-2932f884e90e");
+   }).then(function(characteristic) {
+    var vibl = document.querySelector("#vibrateleft");
+    var vibr = document.querySelector("#vibrateright");
+    vibl.style.display = "block";
+    vibr.style.display = "block";
+    function vibChange(event) {
+      console.log(vibl.value,vibr.value);
+      if (busy) return;
+      busy = true;
+      var v = new Uint8Array([vibl.value,vibr.value]);
+      characteristic.writeValue(v).then(function() {
+        busy = false;
+      });
+    }
+    vibl.addEventListener("input", vibChange, false);
+    vibr.addEventListener("input", vibChange, false);
   }).then(function() {
-    gatt.disconnect();
-    console.log("All Done!");
+    //gatt.disconnect();
+    console.log("Done!");
   }).catch(function(error) {
     console.log("Something went wrong. " + error);
   });
